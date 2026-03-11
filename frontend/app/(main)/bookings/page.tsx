@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/pagination"
 import { Calendar, MoreHorizontal, Phone, Search, Loader2, Filter } from 'lucide-react';
 
-// --- Types based on your API Response ---
+
 interface CustomerDetails {
   _id: string;
   name: string;
@@ -53,7 +53,7 @@ interface BookingData {
   _id: string;
   checkIn: string;
   checkOut: string;
-  payment: "paid" | "pending" | "failed"; // API returns lowercase
+  payment: "paid" | "pending" | "failed"; 
   customerDetails: CustomerDetails;
   roomDetails: RoomDetails;
 }
@@ -72,16 +72,14 @@ const Bookings = () => {
   const [data, setData] = useState<BookingData[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Search & Pagination State
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // 1. Fetch Data
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // REPLACE with your actual booking endpoint
         const response = await axios.get<ApiResponse>('http://localhost:8000/booking/get-all-bookings');
         setData(response.data.data);
       } catch (error) {
@@ -94,7 +92,6 @@ const Bookings = () => {
     fetchData();
   }, []);
 
-  // 2. Filter Logic (Client-side search)
   const filteredBookings = useMemo(() => {
     return data.filter((booking) => 
       booking.customerDetails?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -103,7 +100,6 @@ const Bookings = () => {
     );
   }, [data, searchTerm]);
 
-  // 3. Pagination Logic
   const totalPages = Math.ceil(filteredBookings.length / itemsPerPage);
   const paginatedBookings = filteredBookings.slice(
     (currentPage - 1) * itemsPerPage,
@@ -114,7 +110,6 @@ const Bookings = () => {
     if (page >= 1 && page <= totalPages) setCurrentPage(page);
   };
 
-  // Helpers
   const formatDate = (dateString?: string) => {
     if (!dateString) return "N/A";
     return new Date(dateString).toLocaleDateString('en-CA');
@@ -129,7 +124,6 @@ const Bookings = () => {
   return (
     <div className='flex flex-col w-full min-h-screen gap-6 pb-10'>
 
-      {/* Header & Search */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="font-bold text-2xl text-slate-800">
           Bookings
@@ -152,7 +146,6 @@ const Bookings = () => {
         </div>
       </div>
 
-      {/* Table Section */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden min-h-[300px] flex flex-col justify-between">
         
         <Table>
@@ -185,7 +178,6 @@ const Bookings = () => {
               paginatedBookings.map((booking) => (
                 <TableRow key={booking._id} className="hover:bg-slate-50/50 transition-colors">
                   
-                  {/* Room Details */}
                   <TableCell className="font-medium">
                     <div className="flex flex-col">
                       <span className="text-slate-800 text-base">
@@ -197,7 +189,6 @@ const Bookings = () => {
                     </div>
                   </TableCell>
 
-                  {/* Customer Details */}
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="h-9 w-9 border border-slate-200">
@@ -217,7 +208,6 @@ const Bookings = () => {
                     </div>
                   </TableCell>
 
-                  {/* Check In/Out */}
                   <TableCell>
                     <div className="flex flex-col gap-1 text-sm text-slate-600">
                       <div className="flex items-center gap-2">
@@ -234,7 +224,6 @@ const Bookings = () => {
                     </div>
                   </TableCell>
 
-                  {/* Contact */}
                   <TableCell>
                     <div className="flex items-center gap-2 text-slate-600">
                       <Phone size={14} className="text-slate-400" />
@@ -244,7 +233,6 @@ const Bookings = () => {
                     </div>
                   </TableCell>
 
-                  {/* Payment Status Badge */}
                   <TableCell>
                     <Badge className={`
                       px-3 py-1 rounded-full font-medium shadow-none border-0
@@ -256,7 +244,6 @@ const Bookings = () => {
                     </Badge>
                   </TableCell>
 
-                  {/* Actions */}
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -278,7 +265,6 @@ const Bookings = () => {
           </TableBody>
         </Table>
 
-        {/* Pagination Footer */}
         {filteredBookings.length > 0 && (
           <div className="p-4 border-t border-slate-100 flex justify-end">
             <Pagination>
