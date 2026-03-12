@@ -4,19 +4,28 @@ const customerSchema = mongoose.Schema(
     {
         name: {
             type: String,
-            required: true,
+            required: false,
         },
         email: {
             type: String,
-            required: true,
+            required: false,
+        },
+        nic: {
+            type: String,
+            required: false,
+        },
+        roomID: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Rooms',
+            required: false,
         },
         phoneNumber: {
             type: String,
-            required: true,
+            required: false,
         },
         address: {
             type: String,
-            required: true,
+            required: false,
         },
         otp: {
             type: String,
