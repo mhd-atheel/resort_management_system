@@ -1,6 +1,7 @@
 const { generateOTP, sendOtp } = require("../utils/sendOtp");
-const { mailConfig } = require("../utils/mailConfig");
 const Customer = require("../models/customersModel");
+const Booking = require("../models/bookingModel");
+const Room = require("../models/roomsModel");
 
 
 
@@ -131,18 +132,6 @@ const createCustomer = async (req, res) => {
 }
 
 
-// const getAllCustomers = async (req, res) => {
-
-//     try {
-//         const customer = await Customer.find();
-
-//         res.status(200).json(customer);
-
-//     } catch (error) {
-//         res.status(500).json({ error: "An error occurred" });
-//     }
-
-// }
 
 const getAllCustomers = async (req, res) => {
     try {
@@ -261,6 +250,85 @@ const getCustomersById = async (req, res) => {
 
 }
 
+const updateCustomerById = async (req, res) => {
+  try {
+      const { id } = req.params;
+      
+      
+      const { name, email, phoneNumber, address, nic, roomID } = req.body;
+
+      
+      const updatedCustomer = await Customer.findByIdAndUpdate(
+          id,
+          {
+              $set: {
+                  ...(name && { name }),
+                  ...(email && { email }),
+                  ...(phoneNumber && { phoneNumber }),
+                  ...(address && { address }),
+                  ...(nic && { nic }),
+                  ...(roomID && { roomID }),
+              },
+          },
+          { new: true, runValidators: true } 
+      );
+
+      
+      if (!updatedCustomer) {
+          return res.status(404).json({ message: "Customer not found" });
+      }
+
+      res.status(200).json({ 
+          status: "success", 
+          message: "Customer updated successfully",
+          data: updatedCustomer 
+      });
+
+  } catch (error) {
+      console.error("Error updating customer:", error);
+      res.status(500).json({ error: "An error occurred while updating customer details" });
+  }
+};
+
+
+const deleteCustomerById = async (req, res) => {
+  try {
+      const { id } = req.params;
+
+      
+      const deletedCustomer = await Customer.findByIdAndDelete(id);
+
+      if (!deletedCustomer) {
+          return res.status(404).json({ message: "Customer not found" });
+      }
+
+      const cleanupTasks = [];
+
+      if (deletedCustomer.roomID) {
+          cleanupTasks.push(
+              Room.findByIdAndUpdate(deletedCustomer.roomID, { $set: { isAvailable: true } })
+          );
+      }
+
+      cleanupTasks.push(
+          Booking.deleteMany({ customerID: id })
+      );
+
+      if (cleanupTasks.length > 0) {
+          await Promise.all(cleanupTasks);
+      }
+
+      res.status(200).json({ 
+          status: "success", 
+          message: "Customer and associated records deleted successfully" 
+      });
+
+  } catch (error) {
+      console.error("Error deleting customer:", error);
+      res.status(500).json({ error: "An error occurred while deleting the customer" });
+  }
+};
+
 
 
 
@@ -271,5 +339,6 @@ module.exports = {
     verifyCustomerOTP,
     getAllCustomers,
     getCustomersById,
-    
+    updateCustomerById,
+    deleteCustomerById
 }
