@@ -1,65 +1,127 @@
+'use client'
+
 import Image from "next/image";
+import axios from 'axios'
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+
+type User = {
+  _id: string;
+  name: string;
+  email: string;
+  userType: string;
+  isVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+};
+
+
 
 export default function Home() {
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<User | null>(null);
+  const [users, setUsers] = useState<[] | null>([]);
+  const router = useRouter()
+
+  const getMe = async () => {
+
+    setLoading(true)
+    try {
+
+      const token = localStorage.getItem("token");
+      const response = await axios.get('http://localhost:8000/auth/me', {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      console.log(response.data);
+
+      if (response.data.message = 'Token verified successfully') {
+
+        setData(response.data.user)
+
+        if (response.data.user.userType == 'admin') {
+          await getUser()
+        }
+
+        // localStorage.setItem("token" ,response.data.token);
+        // localStorage.setItem("user-type" ,response.data.user.userType);
+        console.log(data);
+
+      }
+      setLoading(false)
+
+    } catch (error) {
+      console.log(error)
+      setLoading(false)
+    }
+
+
+  }
+
+  const getUser = async () => {
+
+    setLoading(true)
+    try {
+
+      const token = localStorage.getItem("token");
+      const response = await axios.get('http://localhost:8000/auth/users');
+      console.log(response.data);
+
+
+      setUsers(response.data)
+
+      // localStorage.setItem("token" ,response.data.token);
+      // localStorage.setItem("user-type" ,response.data.user.userType);
+      console.log(users);
+
+
+      setLoading(false)
+
+    } catch (error) {
+      console.log(error)
+      setLoading(false)
+    }
+
+
+  }
+
+  useEffect(() => {
+    getMe()
+  }, [data, users]);
+
+
+
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="flex h-screen w-full flex-col justify-center items-center">
+      <div className='flex flex-row items-center font-bold justify-center'>
+        <h1>Resort Management System</h1>
+      </div>
+      <div className='flex mt-2 flex-row items-center justify-center'>
+        <h1>Hello 👋 {data?.name}</h1>
+      </div>
+      <div className='flex mt-2 flex-row items-center justify-center'>
+        <h1>{data?.email}</h1>
+      </div>
+      <div className="h-10  mt-5 bg-black rounded-xl flex flex-row justify-center items-center ">
+        <h1 className="text-white uppercase text-sm font-bold px-5">{data?.userType}</h1>
+      </div>
+      
+
+      {
+        users?.map((data, index) => (
+          <div>
+            
+            <div className='flex mt-2 flex-row gap-10 items-center justify-center'>
+              <h1>{users[index]['name']} | {users[index]['email']} | {users[index]['userType']} | {users[index]['createdAt']}</h1>
+            </div>
+          </div>
+        ))
+      }
+      <Button onClick={()=>{router.push("/login")}} className="mt-5" variant='outline'>logout</Button>
     </div>
   );
 }
