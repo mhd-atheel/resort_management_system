@@ -8,7 +8,7 @@ const { mailConfig } = require("../utils/mailConfig");
 
 const createUser = async (req, res) => {
   try {
-    const { name, email } = req.body;
+    const { name, email, stfID,contact,workType,dateJoined,userType} = req.body;
 
     const existEmail = await User.findOne({ email });
 
@@ -21,6 +21,7 @@ const createUser = async (req, res) => {
       length: 16,
       useSymbols: false,
       avoidSimilar: true,
+      
     });
 
 
@@ -31,6 +32,7 @@ const createUser = async (req, res) => {
       name,
       email,
       password: hashedPassword,
+      stfID,contact,workType,dateJoined,userType
     });
 
     await newUser.save();
@@ -124,11 +126,167 @@ const verifyUserOTP = async (req, res) => {
 };
 
 
+const userMe = async (req, res) => {
+  try {
+    
+    const { sub, email } = req.user;
 
+    const user = await User.findById(sub);
+
+    return res.status(200).json({
+      message: "Token verified successfully",
+      user,
+    });
+
+
+  } catch (error) {
+    res.status(500).json({ error: "An error occurred" });
+  }
+};
+
+const getAllUsers = async (req, res) => {
+  try {
+  
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.max(1, parseInt(req.query.limit) || 10);
+    const search = req.query.search || "";
+    const skip = (page - 1) * limit;
+
+
+    const matchStage = search
+      ? {
+          $or: [
+            { name: { $regex: search, $options: "i" } },
+            { email: { $regex: search, $options: "i" } },
+            { stfID: { $regex: search, $options: "i" } },
+            { contact: { $regex: search, $options: "i" } },
+            { userType: { $regex: search, $options: "i" } }, 
+          ],
+        }
+      : {};
+
+    const result = await User.aggregate([
+      { $match: matchStage },
+
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          data: [
+            { $sort: { createdAt: -1 } }, 
+            { $skip: skip },
+            { $limit: limit },
+            
+            { 
+                $project: { 
+                    password: 0 
+                } 
+            }
+          ],
+        },
+      },
+    ]);
+
+   
+    const data = result[0]?.data || [];
+    const total = result[0]?.metadata[0]?.total || 0;
+    const totalPages = Math.ceil(total / limit);
+
+    res.status(200).json({
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+      },
+    });
+
+  } catch (error) {
+    console.error("Error in getAllUsers:", error);
+    res.status(500).json({
+      message: "Error fetching users",
+      error: error.message,
+      data: [],
+      pagination: { total: 0, page: 1, limit: 10, totalPages: 0 },
+    });
+  }
+};
+
+
+const updateUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { name, email, stfID, contact, workType, dateJoined, userType } = req.body;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (email && email !== user.email) {
+      const emailExists = await User.findOne({ email });
+      if (emailExists) {
+        return res.status(400).json({ message: "Email already in use by another account" });
+      }
+    }
+
+    
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          ...(name && { name }),
+          ...(email && { email }),
+          ...(stfID && { stfID }),
+          ...(contact && { contact }),
+          ...(workType && { workType }),
+          ...(dateJoined && { dateJoined }),
+          ...(userType && { userType }),
+        },
+      },
+      { new: true, runValidators: true } 
+    ).select("-password -otp -otpExpires"); 
+
+    res.status(200).json({
+      status: "success",
+      message: "User updated successfully",
+      data: updatedUser,
+    });
+  } catch (error) {
+    console.error("Error updating user:", error);
+    res.status(500).json({ error: "An error occurred while updating the user" });
+  }
+};
+
+const deleteUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    
+    const deletedUser = await User.findByIdAndDelete(id);
+
+    if (!deletedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({
+      status: "success",
+      message: "User account deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    res.status(500).json({ error: "An error occurred while deleting the user" });
+  }
+};
 
 
 module.exports = {
   createUser,
   loginUser,
-  verifyUserOTP
+  verifyUserOTP,
+  userMe,
+  getAllUsers,
+  updateUserById,
+  deleteUserById
 }
