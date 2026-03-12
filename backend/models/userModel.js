@@ -2,6 +2,10 @@ const mongoose = require("mongoose");
 
 const userSchema = mongoose.Schema(
   {
+    stfID: {
+      type: String,
+      required: true,
+    },
     name: {
       type: String,
       required: true,
@@ -14,23 +18,38 @@ const userSchema = mongoose.Schema(
       type: String,
       required: true,
     },
-    userType: {
-        type: String,
-        enum: ["admin","receptionist"],
-        default: "receptionist",
-        required: true,
-    },
-    otp: { 
+    contact: {
       type: String,
-      required: false 
+      required: true,
     },
-    otpExpires: { 
-      type: Date, 
+
+    userType: {
+      type: String,
+      enum: ["admin", "receptionist"],
+      default: "receptionist",
+      required: true,
+    },
+    workType: {
+      type: String,
+      enum: ["full time", "part time"],
+      default: "full time",
+      required: true,
+    },
+    dateJoined: {
+      type: Date,
       required: false
     },
-    isVerified: { 
-      type: Boolean, 
-      default: false 
+    otp: {
+      type: String,
+      required: false
+    },
+    otpExpires: {
+      type: Date,
+      required: false
+    },
+    isVerified: {
+      type: Boolean,
+      
     },
   },
   { timestamps: true }
