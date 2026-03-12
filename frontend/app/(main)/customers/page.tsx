@@ -23,13 +23,13 @@ import {
 import {
   Pagination,
   PaginationContent,
-  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { Calendar, MoreHorizontal, Phone, Plus, Search, MapPin, CreditCard, Loader2 } from 'lucide-react';
+import { Calendar, MoreHorizontal, Phone, Search, MapPin, CreditCard, Loader2, AlertTriangle } from 'lucide-react';
+import { CustomDialog } from '@/components/CustomDialog';
 
 interface RoomDetails {
   roomID: string;
@@ -67,9 +67,9 @@ interface ApiResponse {
   };
 }
 
-
 interface FlattenedBooking {
   bookingId: string;
+  customerId: string; 
   customerName: string;
   customerEmail: string;
   customerAvatarSeed: string;
@@ -87,12 +87,26 @@ const Customers = () => {
   const [rawData, setRawData] = useState<CustomerData[]>([]);
   const [loading, setLoading] = useState(true);
   
-  
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5; 
 
   
+  const [isUpdateOpen, setIsUpdateOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<FlattenedBooking | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateForm, setUpdateForm] = useState({
+    name: '',
+    email: '',
+    nic: '',
+    phoneNumber: '',
+    address: ''
+  });
+
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState<FlattenedBooking | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -107,11 +121,11 @@ const Customers = () => {
     fetchData();
   }, []);
 
-  
   const allBookings = useMemo(() => {
     return rawData.flatMap((customer) => 
       customer.bookingHistory.map((booking) => ({
         bookingId: booking._id,
+        customerId: customer._id, 
         customerName: customer.name,
         customerEmail: customer.email,
         customerAvatarSeed: customer.name, 
@@ -127,7 +141,6 @@ const Customers = () => {
     );
   }, [rawData]);
 
-  
   const filteredBookings = useMemo(() => {
     return allBookings.filter((item) => 
       item.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -137,14 +150,12 @@ const Customers = () => {
     );
   }, [allBookings, searchTerm]);
 
-
   const totalPages = Math.ceil(filteredBookings.length / itemsPerPage);
   const paginatedBookings = filteredBookings.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
-  
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
@@ -153,7 +164,73 @@ const Customers = () => {
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
-    setCurrentPage(1); // Reset to page 1 when searching
+    setCurrentPage(1); 
+  };
+
+  const openUpdateDialog = (customerRow: FlattenedBooking) => {
+    setSelectedCustomer(customerRow);
+    setUpdateForm({
+      name: customerRow.customerName,
+      email: customerRow.customerEmail,
+      nic: customerRow.nic,
+      phoneNumber: customerRow.contact,
+      address: customerRow.address
+    });
+    setIsUpdateOpen(true);
+  };
+
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setUpdateForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const submitUpdate = async () => {
+    if (!selectedCustomer) return;
+    setIsUpdating(true);
+    
+    try {
+      await axios.put(`http://localhost:8000/customer/update-customer-by-id/${selectedCustomer.customerId}`, updateForm);
+      
+      setRawData(prevData => prevData.map(cust => {
+        if (cust._id === selectedCustomer.customerId) {
+          return { ...cust, ...updateForm };
+        }
+        return cust;
+      }));
+
+      setIsUpdateOpen(false);
+    } catch (error) {
+      console.error("Error updating customer:", error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const openDeleteDialog = (customerRow: FlattenedBooking) => {
+    setCustomerToDelete(customerRow);
+    setIsDeleteOpen(true);
+  };
+
+  const submitDelete = async () => {
+    if (!customerToDelete) return;
+    setIsDeleting(true);
+
+    try {
+      await axios.delete(`http://localhost:8000/customer/delete-customer-by-id/${customerToDelete.customerId}`);
+      
+      setRawData(prevData => prevData.filter(cust => cust._id !== customerToDelete.customerId));
+      
+      setIsDeleteOpen(false);
+      setCustomerToDelete(null);
+
+      if (paginatedBookings.length === 1 && currentPage > 1) {
+        setCurrentPage(prev => prev - 1);
+      }
+    } catch (error) {
+      console.error("Error deleting customer:", error);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const formatDate = (dateString?: string) => {
@@ -167,13 +244,11 @@ const Customers = () => {
 
   return (
     <div className='flex flex-col w-full min-h-screen gap-6 pb-10'>
-
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="font-bold text-2xl text-slate-800">Customers</div>
         <div className="flex items-center gap-4 w-full sm:w-auto">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
-            
             <Input 
               type="search" 
               placeholder="Search name, NIC, Room..." 
@@ -182,11 +257,9 @@ const Customers = () => {
               onChange={handleSearch}
             />
           </div>
-          
         </div>
       </div>
 
-      {/* Table Section */}
       <div className="rounded-xl p-2 border border-slate-200 bg-white shadow-sm overflow-hidden min-h-[300px] flex flex-col justify-between">
         <Table>
           <TableHeader className="bg-slate-50">
@@ -286,10 +359,17 @@ const Customers = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>View Details</DropdownMenuItem>
-                        <DropdownMenuItem>Update Status</DropdownMenuItem>
-                        <DropdownMenuItem className="text-rose-600">Cancel Booking</DropdownMenuItem>
+                        <DropdownMenuLabel className='font-bold'>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => openUpdateDialog(row)}>
+                          Edit Customer Details
+                        </DropdownMenuItem>
+                        {/* WIRING UP THE DELETE BUTTON */}
+                        <DropdownMenuItem 
+                          className="text-rose-600 focus:text-rose-600 focus:bg-rose-50"
+                          onClick={() => openDeleteDialog(row)}
+                        >
+                          Delete
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -303,7 +383,6 @@ const Customers = () => {
           <div className="p-4 border-t border-slate-100 flex justify-end">
             <Pagination>
               <PaginationContent>
-                
                 <PaginationItem>
                   <PaginationPrevious 
                     href="#" 
@@ -311,8 +390,6 @@ const Customers = () => {
                     className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
                   />
                 </PaginationItem>
-                
-                
                 {[...Array(totalPages)].map((_, i) => (
                    <PaginationItem key={i}>
                      <PaginationLink 
@@ -324,7 +401,6 @@ const Customers = () => {
                      </PaginationLink>
                    </PaginationItem>
                 ))}
-
                 <PaginationItem>
                   <PaginationNext 
                     href="#" 
@@ -337,8 +413,84 @@ const Customers = () => {
           </div>
         )}
       </div>
+
+      
+      <CustomDialog
+        open={isUpdateOpen}
+        onOpenChange={setIsUpdateOpen}
+        title="Update Customer Details"
+        description="Make changes to the customer's profile here. Click save when you're done."
+        footer={
+          <div className="flex gap-2 justify-end w-full">
+            <Button variant="outline" onClick={() => setIsUpdateOpen(false)} disabled={isUpdating}>
+              Cancel
+            </Button>
+            <Button onClick={submitUpdate} disabled={isUpdating}>
+              {isUpdating ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+              Save Changes
+            </Button>
+          </div>
+        }
+      >
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <label htmlFor="name" className="text-sm font-medium">Name</label>
+            <Input id="name" name="name" value={updateForm.name} onChange={handleFormChange} />
+          </div>
+          <div className="grid gap-2">
+            <label htmlFor="email" className="text-sm font-medium">Email</label>
+            <Input id="email" name="email" value={updateForm.email} onChange={handleFormChange} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <label htmlFor="nic" className="text-sm font-medium">NIC</label>
+              <Input id="nic" name="nic" value={updateForm.nic} onChange={handleFormChange} />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="phoneNumber" className="text-sm font-medium">Phone Number</label>
+              <Input id="phoneNumber" name="phoneNumber" value={updateForm.phoneNumber} onChange={handleFormChange} />
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <label htmlFor="address" className="text-sm font-medium">Address</label>
+            <Input id="address" name="address" value={updateForm.address} onChange={handleFormChange} />
+          </div>
+        </div>
+      </CustomDialog>
+
+      
+      <CustomDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        title="Delete Customer"
+        description="Are you absolutely sure you want to delete this customer? This action cannot be undone."
+        footer={
+          <div className="flex gap-2 justify-end w-full">
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={submitDelete} disabled={isDeleting} className="bg-rose-600 hover:bg-rose-700">
+              {isDeleting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+              Confirm Delete
+            </Button>
+          </div>
+        }
+      >
+        {customerToDelete && (
+          <div className="bg-rose-50 text-rose-800 p-4 rounded-md flex gap-3 items-start mt-2">
+            <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-rose-600" />
+            <div className="text-sm">
+              <p className="font-semibold mb-1">Warning</p>
+              <p>
+                Deleting <strong>{customerToDelete.customerName}</strong> will also remove their booking history and free up Room {customerToDelete.roomNumber}.
+              </p>
+            </div>
+          </div>
+        )}
+      </CustomDialog>
+
     </div>
   )
 }
 
-export default Customers
+export default Customers;
