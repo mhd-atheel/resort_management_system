@@ -24,15 +24,13 @@ import {
 import {
   Pagination,
   PaginationContent,
-  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { Calendar as CalenderIcon, MoreHorizontal, Phone, Search, Plus, Loader2, Mail, Briefcase, CalendarIcon } from 'lucide-react';
+import { Calendar as CalenderIcon, MoreHorizontal, Phone, Search, Plus, Loader2, Mail, Briefcase, CalendarIcon, AlertTriangle } from 'lucide-react';
 import { CustomDialog } from '@/components/CustomDialog';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { addDays, format } from 'date-fns';
@@ -66,16 +64,20 @@ interface ApiResponse {
 const Staffs = () => {
   const [data, setData] = useState<StaffData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [workTypeSelection, setWorkTypeSelection] = useState("full time");
-  const workTypeOptions = ["full time", "part time"];
-  const [userTypeSelection, setUserTypeSelection] = useState("receptionist");
-  const userTypeOptions = ["admin", "receptionist"];
-
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
-  const [openCreateStaff, setOpenCreateStaff] = useState(false);
 
+  const workTypeOptions = ["full time", "part time"];
+  const userTypeOptions = ["admin", "receptionist"];
+
+  //  CREATE STATE 
+  const [openCreateStaff, setOpenCreateStaff] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [workTypeSelection, setWorkTypeSelection] = useState("full time");
+  const [userTypeSelection, setUserTypeSelection] = useState("receptionist");
+  const [dateJoined, setDateJoined] = useState<Date | undefined>(new Date());
   const [staffData, setStaffData] = useState({
     stfID: "",
     name: "",
@@ -83,33 +85,35 @@ const Staffs = () => {
     contact: "",
   });
 
-  const [dateJoined, setDateJoined] = useState<Date | undefined>(
-    new Date()
-  )
-  const handleCheckInSelect = (date: Date | undefined) => {
-    if (!date) return
+  //  EDIT STATE 
+  const [openEditStaff, setOpenEditStaff] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<StaffData | null>(null);
+  const [editWorkType, setEditWorkType] = useState("full time");
+  const [editUserType, setEditUserType] = useState("receptionist");
+  const [editDateJoined, setEditDateJoined] = useState<Date | undefined>(new Date());
+  const [editStaffData, setEditStaffData] = useState({
+    stfID: "",
+    name: "",
+    email: "",
+    contact: "",
+  });
 
-    const nextDay = addDays(date, 1)
+  //  DELETE STATE 
+  const [openDeleteStaff, setOpenDeleteStaff] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-
-    const now = new Date()
-    nextDay.setHours(now.getHours(), now.getMinutes(), now.getSeconds())
-
-    setDateJoined(nextDay)
-
-
-    console.log("Auto-Checkout:", nextDay.toISOString())
-
-  }
-
-
-
-
-  const handleCloseCreateStaff = () => {
-    setOpenCreateStaff(false);
-  };
-  const handleOpenCreateStaff = () => {
-    setOpenCreateStaff(true);
+  const handleCheckInSelect = (date: Date | undefined, isEdit = false) => {
+    if (!date) return;
+    const nextDay = addDays(date, 1);
+    const now = new Date();
+    nextDay.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+    
+    if (isEdit) {
+      setEditDateJoined(nextDay);
+    } else {
+      setDateJoined(nextDay);
+    }
   };
 
   const fetchData = async () => {
@@ -118,20 +122,18 @@ const Staffs = () => {
       setData(response.data.data);
     } catch (error) {
       console.error("Failed to fetch staff:", error);
+      toast.error("Failed to fetch staff data");
     } finally {
       setLoading(false);
     }
   };
+
   useEffect(() => {
-
-
     fetchData();
   }, []);
 
-
-
+  
   const createStaff = async () => {
-
     const body = {
       name: staffData.name,
       stfID: staffData.stfID,
@@ -142,23 +144,93 @@ const Staffs = () => {
       userType: userTypeSelection
     }
 
-    console.log(body);
-    setLoading(true)
+    setIsCreating(true);
     try {
-      const response = await axios.post('http://localhost:8000/auth/create-user', body);
-
-      console.log(response.data);
+      await axios.post('http://localhost:8000/auth/create-user', body);
+      toast.success("Staff member created successfully!");
       setOpenCreateStaff(false);
-      setLoading(false)
-      fetchData()
-
-    } catch (error) {
-      console.log(error)
-      toast.error("Error an accured")
-      setLoading(false)
+      // Reset form
+      setStaffData({ stfID: "", name: "", email: "", contact: "" });
+      fetchData();
+    } catch (error: any) {
+      console.log(error);
+      toast.error(error.response?.data?.message || "An error occurred while creating staff");
+    } finally {
+      setIsCreating(false);
     }
-
   }
+
+  // 
+  const openEditDialog = (staff: StaffData) => {
+    setSelectedStaff(staff);
+    setEditStaffData({
+      stfID: staff.stfID,
+      name: staff.name,
+      email: staff.email,
+      contact: staff.contact,
+    });
+    setEditWorkType(staff.workType || "full time");
+    setEditUserType(staff.userType || "receptionist");
+    setEditDateJoined(staff.dateJoined ? new Date(staff.dateJoined) : new Date());
+    setOpenEditStaff(true);
+  };
+
+  const updateStaff = async () => {
+    if (!selectedStaff) return;
+    
+    const body = {
+      name: editStaffData.name,
+      stfID: editStaffData.stfID,
+      email: editStaffData.email,
+      contact: editStaffData.contact,
+      workType: editWorkType,
+      dateJoined: editDateJoined?.toISOString(),
+      userType: editUserType
+    };
+
+    setIsUpdating(true);
+    try {
+      await axios.put(`http://localhost:8000/auth/update-user/${selectedStaff._id}`, body);
+      toast.success("Staff details updated successfully!");
+      setOpenEditStaff(false);
+      fetchData(); // Refresh table data
+    } catch (error: any) {
+      console.log(error);
+      toast.error(error.response?.data?.message || "Error updating staff");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  
+  const openDeleteDialog = (staff: StaffData) => {
+    setSelectedStaff(staff);
+    setOpenDeleteStaff(true);
+  };
+
+  const deleteStaff = async () => {
+    if (!selectedStaff) return;
+    
+    setIsDeleting(true);
+    try {
+      await axios.delete(`http://localhost:8000/auth/delete-user/${selectedStaff._id}`);
+      toast.success("Staff member removed successfully");
+      
+      // Update UI without full refresh
+      setData(prevData => prevData.filter(staff => staff._id !== selectedStaff._id));
+      setOpenDeleteStaff(false);
+      
+      // Handle pagination edge case
+      if (paginatedStaff.length === 1 && currentPage > 1) {
+        setCurrentPage(prev => prev - 1);
+      }
+    } catch (error: any) {
+      console.error(error);
+      toast.error("Failed to remove staff member");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const filteredStaff = useMemo(() => {
     return data.filter((staff) =>
@@ -189,6 +261,7 @@ const Staffs = () => {
   };
 
   const capitalize = (s: string) => {
+    if (!s) return "";
     return s.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
@@ -211,9 +284,8 @@ const Staffs = () => {
               onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             />
           </div>
-          <Button onClick={() => handleOpenCreateStaff()} className="bg-[#193948] hover:bg-[#193948]/90 text-white gap-2 shadow-sm">
+          <Button onClick={() => setOpenCreateStaff(true)} className="bg-[#193948] hover:bg-[#193948]/90 text-white gap-2 shadow-sm">
             <Plus size={16} />
-
             <span className="hidden sm:inline">Add Staff</span>
           </Button>
         </div>
@@ -302,11 +374,11 @@ const Staffs = () => {
                   <TableCell>
                     <Badge className={`
                       px-3 py-1 rounded-full font-medium shadow-none border-0 text-[11px]
-                      ${staff.workType.toLowerCase() === 'full time' ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-50' : ''}
-                      ${staff.workType.toLowerCase() === 'part time' ? 'bg-amber-50 text-amber-700 hover:bg-amber-50' : ''}
-                      ${staff.workType.toLowerCase() === 'contract' ? 'bg-blue-50 text-blue-700 hover:bg-blue-50' : ''}
+                      ${staff.workType?.toLowerCase() === 'full time' ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-50' : ''}
+                      ${staff.workType?.toLowerCase() === 'part time' ? 'bg-amber-50 text-amber-700 hover:bg-amber-50' : ''}
+                      ${staff.workType?.toLowerCase() === 'contract' ? 'bg-blue-50 text-blue-700 hover:bg-blue-50' : ''}
                     `}>
-                      {capitalize(staff.workType)}
+                      {capitalize(staff.workType || 'N/A')}
                     </Badge>
                   </TableCell>
 
@@ -319,9 +391,15 @@ const Staffs = () => {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>View Profile</DropdownMenuItem>
-                        <DropdownMenuItem>Edit Details</DropdownMenuItem>
-                        <DropdownMenuItem className="text-rose-600">Remove Staff</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openEditDialog(staff)}>
+                          Edit Staff Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="text-rose-600 focus:text-rose-600 focus:bg-rose-50"
+                          onClick={() => openDeleteDialog(staff)}
+                        >
+                          Remove Staff
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -368,102 +446,68 @@ const Staffs = () => {
         )}
       </div>
 
+      
       <CustomDialog
         open={openCreateStaff}
-        onOpenChange={handleCloseCreateStaff}
+        onOpenChange={setOpenCreateStaff}
         title="Create New Staff"
         description="Fill the following to add a new staff!!!"
         footer={
-          <>
+          <div className="flex gap-2 justify-end w-full">
             <Button
               variant="outline"
-              onClick={handleCloseCreateStaff}
-              className="px-4 py-2 text-sm font-medium rounded-md border border-gray-300 text-gray-700 dark:text-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => setOpenCreateStaff(false)}
+              disabled={isCreating}
+              className="px-4 py-2 text-sm font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100"
             >
               Cancel
             </Button>
             <Button
-              onClick={() => createStaff()}
-              variant="default"
-              className="bg-[#3128B7] hover:bg-[#251E99] cursor-pointer text-white font-semibold py-2 px-6 rounded-md"
-
+              onClick={createStaff}
+              disabled={isCreating}
+              className="bg-[#3128B7] hover:bg-[#251E99] text-white font-semibold py-2 px-6 rounded-md"
             >
-              {loading ? "wait.." : "Create Staff"}
+              {isCreating ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+              Create Staff
             </Button>
-          </>
+          </div>
         }
       >
         <div className="grid gap-6 p-4">
           <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_3fr] md:items-center">
-            <Label
-
-              className="text-left md:text-right font-medium text-gray-700 dark:text-gray-300"
-            >
-              Staff Id
-            </Label>
+            <Label className="text-left md:text-right font-medium text-gray-700">Staff Id</Label>
             <Input
-              id="roomId"
               placeholder='eg STF-01'
               value={staffData.stfID}
               onChange={(e) => setStaffData({ ...staffData, stfID: e.target.value })}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-
-
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent"
             />
-
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_3fr] md:items-center">
-            <Label
-
-              className="text-left md:text-right font-medium text-gray-700 dark:text-gray-300"
-            >
-              Name
-            </Label>
+            <Label className="text-left md:text-right font-medium text-gray-700">Name</Label>
             <Input
-              id="roomId"
               value={staffData.name}
               onChange={(e) => setStaffData({ ...staffData, name: e.target.value })}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-
-
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent"
             />
-
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_3fr] md:items-center">
-            <Label
-
-              className="text-left md:text-right font-medium text-gray-700 dark:text-gray-300"
-            >
-              Email
-            </Label>
+            <Label className="text-left md:text-right font-medium text-gray-700">Email</Label>
             <Input
-              id="email"
               value={staffData.email}
               onChange={(e) => setStaffData({ ...staffData, email: e.target.value })}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-
-
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent"
             />
-
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_3fr] md:items-center">
-            <Label
-
-              className="text-left md:text-right font-medium text-gray-700 dark:text-gray-300"
-            >
-              Staff Type
-            </Label>
+            <Label className="text-left md:text-right font-medium text-gray-700">Staff Type</Label>
             <Select value={userTypeSelection} onValueChange={setUserTypeSelection}>
-              <SelectTrigger className="w-full p-2 border capitalize border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+              <SelectTrigger className="w-full p-2 border capitalize border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent">
                 <SelectValue className='capitalize' placeholder={userTypeSelection} />
               </SelectTrigger>
-              <SelectContent className="bg-white border border-gray-200 rounded-md shadow-lg dark:bg-gray-800 dark:border-gray-700">
+              <SelectContent className="bg-white border border-gray-200 rounded-md shadow-lg">
                 {userTypeOptions.map((option) => (
-                  <SelectItem
-                    key={option}
-                    value={option}
-                    className="px-4 capitalize py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                  >
+                  <SelectItem key={option} value={option} className="px-4 capitalize py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
                     {option}
                   </SelectItem>
                 ))}
@@ -471,23 +515,14 @@ const Staffs = () => {
             </Select>
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_3fr] md:items-center">
-            <Label
-
-              className="text-left md:text-right font-medium text-gray-700 dark:text-gray-300"
-            >
-              Work Type
-            </Label>
+            <Label className="text-left md:text-right font-medium text-gray-700">Work Type</Label>
             <Select value={workTypeSelection} onValueChange={setWorkTypeSelection}>
-              <SelectTrigger className="w-full p-2 border capitalize border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+              <SelectTrigger className="w-full p-2 border capitalize border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent">
                 <SelectValue className='capitalize' placeholder={workTypeSelection} />
               </SelectTrigger>
-              <SelectContent className="bg-white border border-gray-200 rounded-md shadow-lg dark:bg-gray-800 dark:border-gray-700">
+              <SelectContent className="bg-white border border-gray-200 rounded-md shadow-lg">
                 {workTypeOptions.map((option) => (
-                  <SelectItem
-                    key={option}
-                    value={option}
-                    className="px-4 capitalize py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                  >
+                  <SelectItem key={option} value={option} className="px-4 capitalize py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
                     {option}
                   </SelectItem>
                 ))}
@@ -495,59 +530,172 @@ const Staffs = () => {
             </Select>
           </div>
           <div className="grid w-full grid-cols-1 gap-2 md:grid-cols-[1fr_3fr] md:items-center">
-            <Label
-              className="text-left md:text-right font-medium text-gray-700 dark:text-gray-300"
-            >
-              Date Joined
-            </Label>
+            <Label className="text-left md:text-right font-medium text-gray-700">Date Joined</Label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  data-empty={!dateJoined}
-                  className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
-                >
-                  <CalendarIcon />
-                  {dateJoined ? format(dateJoined, "PPP HH:mm") : <span>Pick a date</span>}
+                <Button variant="outline" className="w-full justify-start text-left font-normal border-gray-300">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateJoined ? format(dateJoined, "PPP") : <span>Pick a date</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={dateJoined}
-                  onSelect={handleCheckInSelect}
-                  disabled={(date) => {
-                    const today = new Date()
-                    today.setHours(0, 0, 0, 0)
-                    return date < today
-                  }}
-                />
+                <Calendar mode="single" selected={dateJoined} onSelect={(date) => handleCheckInSelect(date, false)} />
               </PopoverContent>
             </Popover>
           </div>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_3fr] md:items-center">
-            <Label
-
-              className="text-left md:text-right font-medium text-gray-700 dark:text-gray-300"
-            >
-              Contact
-            </Label>
+            <Label className="text-left md:text-right font-medium text-gray-700">Contact</Label>
             <Input
-              id="contact"
               type="text"
               value={staffData.contact}
               onChange={(e) => setStaffData({ ...staffData, contact: e.target.value })}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent"
             />
           </div>
-
-
-
         </div>
       </CustomDialog>
+
+      
+      <CustomDialog
+        open={openEditStaff}
+        onOpenChange={setOpenEditStaff}
+        title="Edit Staff Details"
+        description="Update the staff member's information below."
+        footer={
+          <div className="flex gap-2 justify-end w-full">
+            <Button
+              variant="outline"
+              onClick={() => setOpenEditStaff(false)}
+              disabled={isUpdating}
+              className="px-4 py-2 text-sm font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={updateStaff}
+              disabled={isUpdating}
+              className="bg-[#3128B7] hover:bg-[#251E99] text-white font-semibold py-2 px-6 rounded-md"
+            >
+              {isUpdating ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+              Save Changes
+            </Button>
+          </div>
+        }
+      >
+        <div className="grid gap-6 p-4">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_3fr] md:items-center">
+            <Label className="text-left md:text-right font-medium text-gray-700">Staff Id</Label>
+            <Input
+              value={editStaffData.stfID}
+              onChange={(e) => setEditStaffData({ ...editStaffData, stfID: e.target.value })}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent"
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_3fr] md:items-center">
+            <Label className="text-left md:text-right font-medium text-gray-700">Name</Label>
+            <Input
+              value={editStaffData.name}
+              onChange={(e) => setEditStaffData({ ...editStaffData, name: e.target.value })}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent"
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_3fr] md:items-center">
+            <Label className="text-left md:text-right font-medium text-gray-700">Email</Label>
+            <Input
+              value={editStaffData.email}
+              onChange={(e) => setEditStaffData({ ...editStaffData, email: e.target.value })}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent"
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_3fr] md:items-center">
+            <Label className="text-left md:text-right font-medium text-gray-700">Staff Type</Label>
+            <Select value={editUserType} onValueChange={setEditUserType}>
+              <SelectTrigger className="w-full p-2 border capitalize border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent">
+                <SelectValue className='capitalize' placeholder={editUserType} />
+              </SelectTrigger>
+              <SelectContent className="bg-white border border-gray-200 rounded-md shadow-lg">
+                {userTypeOptions.map((option) => (
+                  <SelectItem key={option} value={option} className="px-4 capitalize py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_3fr] md:items-center">
+            <Label className="text-left md:text-right font-medium text-gray-700">Work Type</Label>
+            <Select value={editWorkType} onValueChange={setEditWorkType}>
+              <SelectTrigger className="w-full p-2 border capitalize border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent">
+                <SelectValue className='capitalize' placeholder={editWorkType} />
+              </SelectTrigger>
+              <SelectContent className="bg-white border border-gray-200 rounded-md shadow-lg">
+                {workTypeOptions.map((option) => (
+                  <SelectItem key={option} value={option} className="px-4 capitalize py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid w-full grid-cols-1 gap-2 md:grid-cols-[1fr_3fr] md:items-center">
+            <Label className="text-left md:text-right font-medium text-gray-700">Date Joined</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start text-left font-normal border-gray-300">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {editDateJoined ? format(editDateJoined, "PPP") : <span>Pick a date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={editDateJoined} onSelect={(date) => handleCheckInSelect(date, true)} />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_3fr] md:items-center">
+            <Label className="text-left md:text-right font-medium text-gray-700">Contact</Label>
+            <Input
+              type="text"
+              value={editStaffData.contact}
+              onChange={(e) => setEditStaffData({ ...editStaffData, contact: e.target.value })}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#3128B7] focus:border-transparent"
+            />
+          </div>
+        </div>
+      </CustomDialog>
+
+      
+      <CustomDialog
+        open={openDeleteStaff}
+        onOpenChange={setOpenDeleteStaff}
+        title="Remove Staff Member"
+        description="Are you sure you want to remove this staff member? This action cannot be undone."
+        footer={
+          <div className="flex gap-2 justify-end w-full">
+            <Button variant="outline" onClick={() => setOpenDeleteStaff(false)} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={deleteStaff} disabled={isDeleting} className="bg-rose-600 hover:bg-rose-700">
+              {isDeleting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
+              Confirm Delete
+            </Button>
+          </div>
+        }
+      >
+        {selectedStaff && (
+          <div className="bg-rose-50 text-rose-800 p-4 rounded-md flex gap-3 items-start mt-2">
+            <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-rose-600" />
+            <div className="text-sm">
+              <p className="font-semibold mb-1">Warning</p>
+              <p>
+                Removing <strong>{selectedStaff.name}</strong> will revoke their access to the system immediately.
+              </p>
+            </div>
+          </div>
+        )}
+      </CustomDialog>
+
     </div>
   )
 }
 
-export default Staffs
+export default Staffs;
