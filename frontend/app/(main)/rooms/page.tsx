@@ -75,12 +75,13 @@ const Rooms = () => {
   const [savedCustomer, setSavedCustomer] = useState(false);
   const [otp, setOtp] = React.useState("");
   const [selectedItem, setSelectedItem] = useState<Room | null>(null);
+  const [userType, setUserType] = useState<string | null>(null);
   const [createRoomData, setCreateRoomData] = useState({
     roomID: "",
     amount: "",
   });
   const [customerData, setCustomerData] = useState({
-    id:"",
+    id: "",
     name: "",
     email: "",
     phoneNumber: "",
@@ -141,7 +142,7 @@ const Rooms = () => {
 
   }
 
-  const createBooking = async (roomId:string) => {
+  const createBooking = async (roomId: string) => {
 
     const body = {
       roomID: roomId,
@@ -161,11 +162,11 @@ const Rooms = () => {
       setLoading(false)
       setOpenCreateRoom(false);
       setOpenBooking(false);
-      customerData.id = "" 
-      customerData.name = "" 
-      customerData.email = "" 
-      customerData.phoneNumber = "" 
-      customerData.address = "" 
+      customerData.id = ""
+      customerData.name = ""
+      customerData.email = ""
+      customerData.phoneNumber = ""
+      customerData.address = ""
       customerData.nic = ""
       customerData.roomID = ""
       await getRooms()
@@ -179,7 +180,14 @@ const Rooms = () => {
 
   }
 
- 
+  useEffect(() => {
+    const storedUserType = localStorage.getItem('user-type');
+
+    setUserType(storedUserType);
+
+  }, []);
+
+
   const verifyCustomer = async () => {
 
     const body = {
@@ -205,16 +213,16 @@ const Rooms = () => {
 
   }
 
-  const createCustomer = async (roomId:string) => {
+  const createCustomer = async (roomId: string) => {
 
     const body = {
-      name:customerData.name,
-      email:customerData.email,
-      phoneNumber:customerData.phoneNumber,
-      address:customerData.address,
-      nic:customerData.nic,
-      roomID:roomId
-  }
+      name: customerData.name,
+      email: customerData.email,
+      phoneNumber: customerData.phoneNumber,
+      address: customerData.address,
+      nic: customerData.nic,
+      roomID: roomId
+    }
 
     console.log(body);
     setLoading(true)
@@ -259,7 +267,7 @@ const Rooms = () => {
           console.log("Full profile found. Auto-filling...");
           setCustomerData((prev) => ({
             ...prev,
-            id:emailData._id,
+            id: emailData._id,
             address: emailData.address || "",
             email: emailData.email || "",
             name: emailData.name || "",
@@ -273,7 +281,7 @@ const Rooms = () => {
           setCustomerData((prev) => ({
             ...prev,
             email: emailData.email || "",
-            id:emailData._id,
+            id: emailData._id,
             name: "",
             address: "",
             nic: "",
@@ -343,14 +351,18 @@ const Rooms = () => {
           Rooms {loading && <span className="text-sm font-normal text-gray-500">(Syncing...)</span>}
         </div>
 
-        <div className="flex items-center gap-4 w-full sm:w-auto">
-          <Button
-            onClick={() => handleOpenCreateRoom()}
-            className="bg-[#193948] px-2 hover:bg-[#193948]/90 text-white gap-2 shadow-sm">
-            <Plus size={16} />
-            <span className="hidden sm:inline">Add New Room</span>
-          </Button>
-        </div>
+
+
+        {userType === 'admin' && (
+          <div className="flex items-center gap-4 w-full sm:w-auto">
+            <Button
+              onClick={() => handleOpenCreateRoom()}
+              className="bg-[#193948] px-2 hover:bg-[#193948]/90 text-white gap-2 shadow-sm">
+              <Plus size={16} />
+              <span className="hidden sm:inline">Add New Room</span>
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="flex mt-5">
@@ -395,7 +407,7 @@ const Rooms = () => {
               onClick={
                 () => handleOpenBooking(room)
               }
-               />
+            />
           ))
         ) : (
           !loading && <p className="text-sm text-gray-400 italic">No luxury rooms found.</p>
@@ -542,12 +554,12 @@ const Rooms = () => {
                 </Button>
               )}
               <Button
-                onClick={() => savedCustomer ? createBooking(selectedItem._id): createCustomer(selectedItem._id)}
+                onClick={() => savedCustomer ? createBooking(selectedItem._id) : createCustomer(selectedItem._id)}
                 variant="default"
                 className="bg-[#3128B7] hover:bg-[#251E99] text-white font-semibold py-2 px-6 rounded-md"
 
               >
-                { !loading? savedCustomer ? "Make Booking" : 'Save & Next':"wait.."}
+                {!loading ? savedCustomer ? "Make Booking" : 'Save & Next' : "wait.."}
               </Button>
 
             </>
